@@ -12,12 +12,10 @@ Instead of read env variables, `flagstruct` help you to populate your structs fr
 
 1. Default values may be provided by appending ",default=value" to the struct tag
 2. Required values may be marked by appending ",required" to the struct tag
-3. `flagstruct` does not work on structs without exported fields (including one that contains no `flag` tags at all)
+3. `flagstruct` will ignore every unexported struct field (including one that contains no `flag` tags at all)
 4. You can't use `default` and `required` in the same annotation
 
 ## Getting started
-
-Define a struct with `flag` annotation
 
 ### Installation
 
@@ -45,7 +43,7 @@ type Config struct {
 		Host     string `flag:"server-host,default=localhost"`
 		Port     int    `flag:"server-port"`
 	}
-    Timeout time.Duration `flag:"timeout,default=1m"`
+	Timeout time.Duration `flag:"timeout,default=1m"`
 }
 ```
 Then, call to `flagstruct.Decode` function
@@ -61,7 +59,7 @@ func main() {
 		c.Server.Host,
 		c.Server.Port,
 		c.Timeout.Seconds(),
-    )
+	)
 }
 ```
 
@@ -74,12 +72,11 @@ $ go run main.go -timeout=2m -server-port=3000
 > connecting to localhost:3000 (timeout 120 seconds)
 ```
 
-All parse errors will fail fast and return an error in this mode.
-
 ## Supported types
 
-* Structs (and pointer to structs)
-* Slices of below defined types, separated by semicolon
+* Structs
+* Pointer to structs
+* Slices of below defined types, separated by semicolon (`;`)
 * `bool`
 * `float32`, `float64`
 * `int`, `int8`, `int16`, `int32`, `int64`
@@ -87,13 +84,12 @@ All parse errors will fail fast and return an error in this mode.
 * `string`
 * `interface{}`
 * `time.Duration`, using the [`time.ParseDuration()` format](http://golang.org/pkg/time/#ParseDuration)
-* Types those implement a `Decoder` interface
+* Custom types (those types must implement the `flagstruct.Decoder` interface)
 
 ## Custom `Decoder`
 
-If you want a field to be decoded with custom behavior, you may implement the interface `Decoder` for the filed type.
-
-`Decoder` is the interface implemented by an object that can decode an argument string representation of itself.
+if you want that a field use a custom decoder, you may implement the `Decoder` interface.
+> `Decoder` is the interface implemented by an object, that can decode an argument string representation of itself.
 
 ```go
 type Config struct {
