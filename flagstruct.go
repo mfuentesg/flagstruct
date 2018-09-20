@@ -11,10 +11,14 @@ import (
 )
 
 var (
+	// ErrInvalidAnnotation custom error for invalid annotations
 	ErrInvalidAnnotation = errors.New("flagstruct: could not specify 'default' and 'required' in the same annotation")
-	ErrInvalidType       = errors.New("flagstruct: non-pointer passed to decode")
+	// ErrInvalidType custom error for unexpected element to decode
+	ErrInvalidType = errors.New("flagstruct: non-pointer passed to decode")
 )
 
+// Decoder is the interface implemented by an object that can decode an
+// environment variable string representation of itself.
 type Decoder interface {
 	Decode(string) error
 }
@@ -32,12 +36,19 @@ func lookup(args []string, t string) string {
 	return ""
 }
 
+// Decode command line arguments into the provided target.
+// The target must be a non-nil pointer to a struct.
+// Fields in the struct must be exported, and tagged with an "flag"
+// struct tag with a value containing the name of the command line argument.
+//
+// Default values may be provided by appending ",default=value" to the
+// struct tag.
+// Required values may be marked by appending ",required"
+// to the struct tag.  It is an error to provide both "default" and
+// "required".
 func Decode(v interface{}) error {
-	// prevent any validation without flags
-	if len(os.Args[1:]) == 0 {
-		return nil
-	}
-
+	// prevent any validation without args
+	args := os.Args[1:]
 	vl := reflect.ValueOf(v)
 	if vl.Kind() != reflect.Ptr || vl.IsNil() {
 		return ErrInvalidType
@@ -46,8 +57,15 @@ func Decode(v interface{}) error {
 	if vl.Kind() != reflect.Struct {
 		return ErrInvalidType
 	}
+	if len(args) == 0 {
+		return nil
+	}
 	t := vl.Type()
 	for i := 0; i < vl.NumField(); i++ {
+		ft := t.Field(i)
+		if ft.PkgPath != "" {
+			continue
+		}
 		f := vl.Field(i)
 		switch f.Kind() {
 		case reflect.Ptr:
@@ -65,16 +83,18 @@ func Decode(v interface{}) error {
 			if custom {
 				break
 			}
-			Decode(ss)
+			if err := Decode(ss); err != nil {
+				return err
+			}
 		}
 		if !f.CanSet() {
 			continue
 		}
-		tag := t.Field(i).Tag.Get("flag")
+		tag := ft.Tag.Get("flag")
 		if tag == "" {
 			continue
 		}
-		flagVal, err := parse(tag)
+		flagVal, err := parse(args, tag)
 		if err != nil {
 			return err
 		}
@@ -82,30 +102,33 @@ func Decode(v interface{}) error {
 			continue
 		}
 		decoder, custom := f.Addr().Interface().(Decoder)
+		var decodeErr error
 		if custom {
-			if err := decoder.Decode(flagVal); err != nil {
-				return fmt.Errorf("flagstruct: could not decode value: %v", err)
-			}
+			decodeErr = decoder.Decode(flagVal)
 		} else if f.Kind() == reflect.Slice {
 			decodeSlice(&f, flagVal)
 		} else {
-			if err := decodePrimitiveType(&f, flagVal); err != nil {
-				return err
-			}
+			decodeErr = decodePrimitive(&f, flagVal)
+		}
+		if decodeErr != nil {
+			return fmt.Errorf("flagstruct: could not decode value `%s` to kind `%v`: %v", flagVal, f.Kind(), decodeErr)
 		}
 	}
 	return nil
 }
 
-func parse(tag string) (string, error) {
-	args := os.Args[1:]
+func parse(args []string, tag string) (string, error) {
 	parts := strings.Split(tag, ",")
+	if parts[0] == "" {
+		return "", errors.New("flagstruct: malformed annotation, `flag` name must be defined")
+	}
 	flagVal := lookup(args, parts[0])
-
+	if len(parts) < 2 {
+		return flagVal, nil
+	}
 	required := false
 	hasDefault := false
 	defaultValue := ""
-
 	for _, o := range parts[1:] {
 		if !required {
 			required = strings.HasPrefix(o, "required")
@@ -127,27 +150,32 @@ func parse(tag string) (string, error) {
 	return flagVal, nil
 }
 
-func decodeSlice(f *reflect.Value, flagVal string) error {
+func decodeSlice(f *reflect.Value, flagVal string) {
+	var values []string
+	var toReduce int
 	parts := strings.Split(flagVal, ";")
-	values := parts[:0]
 	for _, x := range parts {
 		if x != "" {
 			values = append(values, strings.TrimSpace(x))
 		}
 	}
-	valuesCount := len(values)
-	slice := reflect.MakeSlice(f.Type(), valuesCount, valuesCount)
-	if valuesCount > 0 {
-		for i := 0; i < valuesCount; i++ {
+	length := len(values)
+	slice := reflect.MakeSlice(f.Type(), length, length)
+	if length > 0 {
+		for i := 0; i < length; i++ {
 			e := slice.Index(i)
-			return decodePrimitiveType(&e, values[i])
+			if err := decodePrimitive(&e, values[i]); err != nil {
+				toReduce += 1
+			}
 		}
 	}
+	if toReduce > 0 {
+		slice = slice.Slice(0, length-toReduce)
+	}
 	f.Set(slice)
-	return nil
 }
 
-func decodePrimitiveType(f *reflect.Value, flagVal string) error {
+func decodePrimitive(f *reflect.Value, flagVal string) error {
 	switch f.Kind() {
 	case reflect.Bool:
 		v, err := strconv.ParseBool(flagVal)
@@ -155,7 +183,6 @@ func decodePrimitiveType(f *reflect.Value, flagVal string) error {
 			return err
 		}
 		f.SetBool(v)
-
 	case reflect.Float32, reflect.Float64:
 		bits := f.Type().Bits()
 		v, err := strconv.ParseFloat(flagVal, bits)
@@ -163,7 +190,6 @@ func decodePrimitiveType(f *reflect.Value, flagVal string) error {
 			return err
 		}
 		f.SetFloat(v)
-
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		if t := f.Type(); t.PkgPath() == "time" && t.Name() == "Duration" {
 			v, err := time.ParseDuration(flagVal)
