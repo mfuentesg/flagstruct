@@ -241,7 +241,7 @@ func TestDecode(t *testing.T) {
 	if fmt.Sprintf("%v", ts.Database.Timeout) != "5s" {
 		t.Errorf("wrong expected timeout")
 	}
-	if reflect.DeepEqual(ts.Database.Sequence, []int{1, 2, 3}) {
-		t.Errorf("wrong slice assignment")
+	if !reflect.DeepEqual(ts.Database.Sequence, []int{1, 2, 3}) {
+		t.Errorf("wrong slice assignment, expected [1 2 3] got %+v", ts.Database.Sequence)
 	}
 }
