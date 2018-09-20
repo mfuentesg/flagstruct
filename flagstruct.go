@@ -83,7 +83,9 @@ func Decode(v interface{}) error {
 			if custom {
 				break
 			}
-			Decode(ss)
+			if err := Decode(ss); err != nil {
+				return err
+			}
 		}
 		if !f.CanSet() {
 			continue

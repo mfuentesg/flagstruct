@@ -2,23 +2,11 @@ package flagstruct
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"testing"
 	"time"
 )
-
-type Database struct {
-	Host     string
-	Port     int    `flag:"db-port,default=5672"`
-	User     string `flag:"db-user,required"`
-	Password string `flag:"db-password"`
-}
-
-type Test struct {
-	DB      *Database
-	ignored string        `flag:"ignored,default=bla"`
-	Timeout time.Duration `flag:"timeout,default=2s"`
-}
 
 func TestLookup(t *testing.T) {
 	type test struct {
@@ -192,57 +180,68 @@ func TestDecodePrimitive(t *testing.T) {
 			t.Errorf("case #%d: expected %v got %v", i, ts.expected, f)
 		}
 	}
-
 }
 
-// func TestDecode(t *testing.T) {
-// 	os.Args = []string{"./example"}
-// 	var ts Test
-// 	if err := Decode(nil); err == nil {
-// 		t.Error("expected error for invalid argument type")
-// 	}
-// 	if err := Decode(ts); err == nil {
-// 		t.Error("expected error for invalid argument type")
-// 	}
-// 	if err := Decode(&ts); err != nil {
-// 		t.Error("expected error for command without arguments")
-// 	}
-// 	var str string
-// 	if err := Decode(&str); err == nil {
-// 		t.Error("expected error for invalid argument type")
-// 	}
-// 	os.Args = []string{"./example", "-field=ignored"}
-// 	type ignored struct {
-// 		unexported string `flag:"wrong,default=str"`
-// 		field      string `flag:"field,default=field"`
-// 	}
-// 	var i ignored
-// 	if err := Decode(&i); err != nil {
-// 		t.Errorf("wrong result unexpected error, %v", err)
-// 	}
-// 	if i.field != "" {
-// 		t.Errorf("wrong decode expected '' for unexported fields but got '%s'", i.field)
-// 	}
-// 	type pointer struct {
-// 		Str *string `flag:"str"`
-// 	}
-// 	os.Args = []string{"./example", "-str=value"}
-// 	var p pointer
-// 	if Decode(&p); p.Str != nil {
-// 		t.Errorf("wrong result for unsupported field type, expected '' got %+v", p.Str)
-// 	}
-//
-// 	type test struct {
-// 		Int   int   `flag:"int,default=hola"`
-// 		Slice []int `flag:"slice,default=1;2;a"`
-// 	}
-// 	var t3 test
-// 	if err := Decode(&t3); err == nil {
-// 		t.Errorf("expect an error for invalid conversion type %+v", err)
-// 	}
-// 	os.Args = []string{"./example", "-int=5"}
-// 	var t4 test
-// 	if err := Decode(&t4); err == nil {
-// 		t.Errorf("expect an error for invalid conversion type %+v", err)
-// 	}
-// }
+func TestDecode(t *testing.T) {
+	os.Args = []string{"./example"}
+	type testDB struct {
+		Host     string        `flag:"db-host,default=127.0.0.1"`
+		Port     int           `flag:"db-port,default=5672"`
+		User     string        `flag:"db-user,required"`
+		Password string        `flag:"db-password"`
+		Timeout  time.Duration `flag:"db-timeout,default=5s"`
+		Sequence []int         `flag:"db-sequence"`
+	}
+	type test struct {
+		ignored         string  `flag:"ignored,default=foo"`
+		PtrIgnored      *string `flag:"ptr-ignored,default=bar"`
+		TagWithoutValue int     `flag:"no-value"`
+		WrongValueType  float32 `flag:"wrong,default=a"`
+		Database        testDB
+	}
+	var ts test
+	if err := Decode(nil); err == nil {
+		t.Error("expected error for nil argument")
+	}
+	if err := Decode(ts); err == nil {
+		t.Error("expected error for non pointer argument")
+	}
+	if err := Decode(new(string)); err == nil {
+		t.Errorf("expected error for non struct pointer argument")
+	}
+	if err := Decode(&ts); err != nil {
+		t.Error("unexpected error, command without arguments")
+	}
+
+	os.Args = []string{"./example", "-db-user=root"}
+	if err := Decode(&ts); err == nil && ts.WrongValueType != 0 {
+		t.Error("expected error for invalid default value")
+	}
+	if ts.ignored != "" {
+		t.Errorf("wrong assignment expected empty for unexported field")
+	}
+	if ts.PtrIgnored != nil {
+		t.Errorf("wrong assignment expected empty for unexported field")
+	}
+	if ts.TagWithoutValue != 0 {
+		t.Errorf("wrong assignment expected default data type value")
+	}
+	os.Args = []string{"./example", "-wrong=1"}
+	if err := Decode(&ts); err == nil {
+		t.Errorf("expected an error for required field db-user %v", err)
+	}
+	os.Args = []string{"./example", "-wrong=1"}
+	if err := Decode(&ts); err == nil {
+		t.Error("expected an error for required field db-user")
+	}
+	os.Args = []string{"./example", "-wrong=1", "-db-sequence=1;2;3", "-db-user=root"}
+	if err := Decode(&ts); err != nil {
+		t.Errorf("unexpected error with a valid case: %v", err)
+	}
+	if fmt.Sprintf("%v", ts.Database.Timeout) != "5s" {
+		t.Errorf("wrong expected timeout")
+	}
+	if reflect.DeepEqual(ts.Database.Sequence, []int{1, 2, 3}) {
+		t.Errorf("wrong slice assignment")
+	}
+}
