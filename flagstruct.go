@@ -47,7 +47,6 @@ func lookup(args []string, t string) string {
 // to the struct tag.  It is an error to provide both "default" and
 // "required".
 func Decode(v interface{}) error {
-	// prevent any validation without args
 	args := os.Args[1:]
 	vl := reflect.ValueOf(v)
 	if vl.Kind() != reflect.Ptr || vl.IsNil() {
@@ -56,9 +55,6 @@ func Decode(v interface{}) error {
 	vl = vl.Elem()
 	if vl.Kind() != reflect.Struct {
 		return ErrInvalidType
-	}
-	if len(args) == 0 {
-		return nil
 	}
 	t := vl.Type()
 	for i := 0; i < vl.NumField(); i++ {

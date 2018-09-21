@@ -209,9 +209,6 @@ func TestDecode(t *testing.T) {
 	if err := Decode(new(string)); err == nil {
 		t.Errorf("expected error for non struct pointer argument")
 	}
-	if err := Decode(&ts); err != nil {
-		t.Error("unexpected error, command without arguments")
-	}
 
 	os.Args = []string{"./example", "-db-user=root"}
 	if err := Decode(&ts); err == nil && ts.WrongValueType != 0 {
