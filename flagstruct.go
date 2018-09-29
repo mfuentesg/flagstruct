@@ -36,6 +36,15 @@ func lookup(args []string, t string) string {
 	return ""
 }
 
+func inSlice(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
 // Decode command line arguments into the provided target.
 // The target must be a non-nil pointer to a struct.
 // Fields in the struct must be exported, and tagged with an "flag"
@@ -122,9 +131,8 @@ func parse(args []string, tag string) (string, error) {
 	if len(parts) < 2 {
 		return flagVal, nil
 	}
-	required := false
-	hasDefault := false
-	defaultValue := ""
+	var required, hasDefault, hasAllowed bool
+	var defaultValue, allowedValue string
 	for _, o := range parts[1:] {
 		if !required {
 			required = strings.HasPrefix(o, "required")
@@ -132,6 +140,10 @@ func parse(args []string, tag string) (string, error) {
 		if strings.HasPrefix(o, "default=") {
 			hasDefault = true
 			defaultValue = o[8:]
+		}
+		if strings.HasPrefix(o, "allowed=") {
+			hasAllowed = true
+			allowedValue = o[8:]
 		}
 	}
 	if required && hasDefault {
@@ -142,6 +154,11 @@ func parse(args []string, tag string) (string, error) {
 	}
 	if flagVal == "" {
 		flagVal = defaultValue
+	}
+	if parts := strings.Split(allowedValue, ";"); flagVal != "" && hasAllowed && len(parts) != 0 {
+		if !inSlice(parts, flagVal) {
+			return "", fmt.Errorf("flagstruct: the provided value is not allowed, instead use %+v", parts)
+		}
 	}
 	return flagVal, nil
 }

@@ -12,8 +12,9 @@ Instead of read env variables, `flagstruct` help you to populate your structs fr
 
 1. Default values may be provided by appending ",default=value" to the struct tag
 2. Required values may be marked by appending ",required" to the struct tag
-3. `flagstruct` will ignore every unexported struct field (including one that contains no `flag` tags at all)
-4. You can't use `default` and `required` in the same annotation
+3. Allowed values may be provided by appending ",allowed=option;option..." to the struct tag 
+4. `flagstruct` will ignore every unexported struct field (including one that contains no `flag` tags at all)
+5. You can't use `default` and `required` in the same annotation
 
 ## Getting started
 
@@ -41,7 +42,7 @@ import (
 type Config struct {
 	Server struct {
 		Host     string `flag:"server-host,default=localhost"`
-		Port     int    `flag:"server-port"`
+		Port     int    `flag:"server-port,allowed=9090;8080"`
 	}
 	Timeout time.Duration `flag:"timeout,default=1m"`
 }
