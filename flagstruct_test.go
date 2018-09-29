@@ -55,6 +55,26 @@ func TestLookup(t *testing.T) {
 	}
 }
 
+func TestInSlice(t *testing.T) {
+	type test struct {
+		values   []string
+		target   string
+		expected bool
+	}
+
+	tests := []*test{
+		{values: []string{"a", "b", "c"}, target: "1", expected: false},
+		{values: []string{}, target: "a", expected: false},
+		{values: []string{"a", "b", "c"}, target: "c", expected: true},
+	}
+
+	for n, ts := range tests {
+		if found := inSlice(ts.values, ts.target); ts.expected != found {
+			t.Errorf("case #%d: wrong result expected %v got %v", n, ts.expected, found)
+		}
+	}
+}
+
 func TestParse(t *testing.T) {
 	type test struct {
 		args     []string
@@ -198,6 +218,7 @@ func TestDecode(t *testing.T) {
 		TagWithoutValue int     `flag:"no-value"`
 		WrongValueType  float32 `flag:"wrong,default=a"`
 		Database        testDB
+		LimitedValue    int `flag:"limited,allowed=2;4;6,default=4"`
 	}
 	var ts test
 	if err := Decode(nil); err == nil {
@@ -240,5 +261,16 @@ func TestDecode(t *testing.T) {
 	}
 	if !reflect.DeepEqual(ts.Database.Sequence, []int{1, 2, 3}) {
 		t.Errorf("wrong slice assignment, expected [1 2 3] got %+v", ts.Database.Sequence)
+	}
+	os.Args = []string{"./example", "-wrong=1", "-db-sequence=1;2;3", "-db-user=root", "-limited=7"}
+	if err := Decode(&ts); err == nil {
+		t.Error("expected error for not allowed value in args")
+	}
+	os.Args = []string{"./example", "-wrong=1", "-db-sequence=1;2;3", "-db-user=root", "-limited=6"}
+	if err := Decode(&ts); err != nil {
+		t.Error("unexpected error with an allowed value")
+	}
+	if ts.LimitedValue != 6 {
+		t.Errorf("wrong `allowed` assignment expected `6` got `%d`", ts.LimitedValue)
 	}
 }
