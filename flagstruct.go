@@ -108,11 +108,12 @@ func Decode(v interface{}) error {
 		}
 		decoder, custom := f.Addr().Interface().(Decoder)
 		var decodeErr error
-		if custom {
+		switch {
+		case custom:
 			decodeErr = decoder.Decode(flagVal)
-		} else if f.Kind() == reflect.Slice {
+		case f.Kind() == reflect.Slice:
 			decodeSlice(&f, flagVal)
-		} else {
+		default:
 			decodeErr = decodePrimitive(&f, flagVal)
 		}
 		if decodeErr != nil {
@@ -177,8 +178,9 @@ func decodeSlice(f *reflect.Value, flagVal string) {
 	if length > 0 {
 		for i := 0; i < length; i++ {
 			e := slice.Index(i)
+			// nolint
 			if err := decodePrimitive(&e, values[i]); err != nil {
-				toReduce += 1
+				toReduce++
 			}
 		}
 	}

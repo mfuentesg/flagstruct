@@ -150,7 +150,7 @@ func TestDecodeSlice(t *testing.T) {
 	f := reflect.ValueOf(&s).Elem().Field(0)
 	for i, ts := range tests {
 		decodeSlice(&f, ts.value)
-		if len(ts.expected) >= 0 && !reflect.DeepEqual(ts.expected, s.Slice) {
+		if !reflect.DeepEqual(ts.expected, s.Slice) {
 			t.Errorf("%d. wrong slice expected %v got %v", i, ts.expected, s.Slice)
 		}
 	}
@@ -195,7 +195,7 @@ func TestDecodePrimitive(t *testing.T) {
 	var s fields
 	for i, ts := range tests {
 		f := reflect.ValueOf(&s).Elem().Field(ts.field)
-		decodePrimitive(&f, ts.value)
+		_ = decodePrimitive(&f, ts.value)
 		if ts.expected != fmt.Sprintf("%v", f) {
 			t.Errorf("case #%d: expected %v got %v", i, ts.expected, f)
 		}
@@ -213,6 +213,7 @@ func TestDecode(t *testing.T) {
 		Sequence []int         `flag:"db-sequence"`
 	}
 	type test struct {
+		// nolint
 		ignored         string  `flag:"ignored,default=foo"`
 		PtrIgnored      *string `flag:"ptr-ignored,default=bar"`
 		TagWithoutValue int     `flag:"no-value"`
